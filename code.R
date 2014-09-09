@@ -35,6 +35,18 @@ ggplot(tmp, aes(x=density, y=time))+
   geom_point()+xlab("Bit Density")+ylab("Time (s)")
 
 #########################################
+## Compare similarity metrics
+#########################################
+fps <- fp.read('data/cdk.fp', size=881, lf=cdk.lf, header=TRUE)[1:500]
+s.tanimoto <- fp.sim.matrix(fps, method='tanimoto')
+s.dice <- fp.sim.matrix(fps, method='dice')
+d <- rbind(data.frame(method='Tanimoto', s=as.numeric(s.tanimoto)),
+           data.frame(method='Dice', s=as.numeric(s.dice)))
+ggplot(d, aes(x=s, fill=method))+geom_density(alpha=0.25)+
+  scale_fill_discrete(name='Metric')+
+  xlab("Similarity")+theme(legend.position = c(0.85, 0.8))
+
+#########################################
 ## Predicting with fingerprints
 #########################################
 sol <- read.csv('data/solubility.csv', header=TRUE)
@@ -56,6 +68,11 @@ fpm <- fp.to.matrix(fps)
 library(randomForest)
 m1 <- randomForest(x=fpm, y=as.factor(sol$label))
 
+ggplot(data.frame(table(sol$label)),
+       aes(x=Var1, y=Freq))+
+  geom_bar(stat='identity', colour='black', fill='beige')+
+  xlab("Solubility Class")+ylab("Frequency")
+
 #########################################
 ## Clustering fingerprints
 #########################################
@@ -66,6 +83,26 @@ clus <- hclust(dmat)
 par(mar=c(1,4,1,1))
 plot(clus, label=FALSE, xlab='', main='')
 
+## compare clusterins from different fingerprints
+library(rcdk)
+library(dendextend)
+mols <- load.molecules('data/chembl.smi')
+fps <- lapply(c('pubchem', 'extended', 'graph', 'maccs'), function(type) {
+  lapply(mols[1:300], get.fingerprint, type)
+})
+dms <- lapply(fps, function(x) as.dist(1-fp.sim.matrix(x)))
+cls <- lapply(dms, function(x) as.dendrogram(hclust(x)))
+tanglegram(cls[[1]], cls[[2]], main_left='Pubchem 881', main_right='CDK Ext 1024',
+           k_branches=5)
+
+csim <- do.call(rbind, mclapply(cls, function(x) {
+  sapply(cls, function(y) {
+    cor_cophenetic(x,y)
+  })
+}))
+rownames(csim) <- c('Pubchem', 'CDK Extended', 'CDK Graph', 'MACCS')
+colnames(csim) <- rownames(csim)
+image(csim)
 
 #########################################
 ## Bit spectrum
@@ -116,5 +153,5 @@ insol.bs <- bit.spectrum(fps[insol.idx])
 bsdiff <- sol.bs - insol.bs
 d <- data.frame(x=1:length(sol.bs), y=bsdiff)
 ggplot(d, aes(x=x,y=y))+geom_line()+
-  xlab('Bit Position')+ylab(expression(Delta, ' Normalized Frequency')+
+  xlab('Bit Position')+ylab(expression(paste(Delta,' Normalized Frequency')))+
   ylim(c(-1,1))
