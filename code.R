@@ -67,6 +67,8 @@ fpm <- fp.to.matrix(fps)
 ## Model!
 library(randomForest)
 m1 <- randomForest(x=fpm, y=as.factor(sol$label))
+## force equal class size
+m2 <- randomForest(x=fpm, y=as.factor(sol$label), sampsize=854)
 
 ggplot(data.frame(table(sol$label)),
        aes(x=Var1, y=Freq))+
